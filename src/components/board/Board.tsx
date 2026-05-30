@@ -8,62 +8,61 @@ export const Board: React.FC = () => {
 
   if (board.length === 0) return null;
 
-  // Split board into sides
-  const bottomRow = board.slice(0, 11).reverse(); // 10 to 0
-  const leftCol = board.slice(11, 20); // 11 to 19
-  const topRow = board.slice(20, 31); // 20 to 30
-  const rightCol = board.slice(31, 40).reverse(); // 39 to 31
+  // We map the tiles to their grid positions
+  // Bottom: 0-10
+  // Left: 11-19
+  // Top: 20-30
+  // Right: 31-39
 
   return (
-    <div className="aspect-square w-full max-w-[700px] bg-monopoly-darkGreen p-2 shadow-2xl rounded-lg">
-      <div className="grid grid-cols-11 grid-rows-11 h-full gap-0.5 bg-monopoly-darkGreen border-2 border-monopoly-darkGreen">
+    <div className="w-full flex justify-center items-center p-2 sm:p-4">
+      <div className="monopoly-board shadow-2xl rounded-sm">
+        {/* Tiles */}
+        {board.map((tile, index) => {
+          let gridStyle: React.CSSProperties = {};
+          let side: 'top' | 'right' | 'bottom' | 'left' = 'bottom';
 
-        {/* Top Row (20-30) */}
-        {topRow.map((tile, i) => (
-          <div key={tile.id} className="col-start-1" style={{ gridColumnStart: i + 1, gridRowStart: 1 }}>
-            <Tile
-              tile={tile}
-              players={players}
-              isSide="top"
-              isCorner={i === 0 || i === 10}
-            />
-          </div>
-        ))}
+          if (index >= 0 && index <= 10) {
+            // Bottom row: 10 down to 0
+            gridStyle = { gridRow: 11, gridColumn: 11 - index };
+            side = 'bottom';
+          } else if (index >= 11 && index <= 19) {
+            // Left column: 11 up to 19 (bottom to top)
+            gridStyle = { gridColumn: 1, gridRow: 11 - (index - 10) };
+            side = 'left';
+          } else if (index >= 20 && index <= 30) {
+            // Top row: 20 to 30
+            gridStyle = { gridRow: 1, gridColumn: index - 19 };
+            side = 'top';
+          } else if (index >= 31 && index <= 39) {
+            // Right column: 31 to 39 (top to bottom)
+            gridStyle = { gridColumn: 11, gridRow: index - 29 };
+            side = 'right';
+          }
 
-        {/* Left Column (11-19) */}
-        {leftCol.map((tile, i) => (
-          <div key={tile.id} className="col-start-1" style={{ gridRowStart: 10 - i, gridColumnStart: 1 }}>
-            <Tile tile={tile} players={players} isSide="left" />
-          </div>
-        ))}
-
-        {/* Right Column (31-39) */}
-        {rightCol.map((tile, i) => (
-          <div key={tile.id} className="col-start-11" style={{ gridRowStart: i + 2, gridColumnStart: 11 }}>
-            <Tile tile={tile} players={players} isSide="right" />
-          </div>
-        ))}
-
-        {/* Bottom Row (0-10) */}
-        {bottomRow.map((tile, i) => (
-          <div key={tile.id} className="row-start-11" style={{ gridColumnStart: 11 - i, gridRowStart: 11 }}>
-            <Tile
-              tile={tile}
-              players={players}
-              isSide="bottom"
-              isCorner={i === 0 || i === 10}
-            />
-          </div>
-        ))}
+          return (
+            <div key={tile.id} style={gridStyle} className="h-full w-full">
+              <Tile
+                tile={tile}
+                players={players}
+                side={side}
+                isCorner={index % 10 === 0}
+              />
+            </div>
+          );
+        })}
 
         {/* Center Area */}
-        <div className="col-start-2 col-end-11 row-start-2 row-end-11 bg-monopoly-green flex flex-col items-center justify-center p-8 text-center">
-          <h1 className="text-6xl font-black text-monopoly-darkGreen tracking-tighter transform -rotate-45 border-4 border-monopoly-darkGreen px-4">
+        <div className="center-area">
+          <div className="monopoly-logo shadow-lg">
             MONOPOLY
-          </h1>
-          <div className="mt-12 text-monopoly-darkGreen/40 font-bold uppercase tracking-widest">
+          </div>
+          <div className="mt-4 sm:mt-8 text-slate-800/40 font-black uppercase tracking-[0.2em] text-[10px] sm:text-xs text-center">
             Business Board Game
           </div>
+
+          {/* Decorative inner border */}
+          <div className="absolute inset-4 border-2 border-slate-800/5 pointer-events-none" />
         </div>
       </div>
     </div>

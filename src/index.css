@@ -3,31 +3,130 @@
 @tailwind utilities;
 
 :root {
-  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --monopoly-green: #cde6d0;
+  --monopoly-dark-green: #1e293b;
 }
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
   background-color: #0f172a;
+  color: #f8fafc;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
 }
 
-.custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
-}
+@layer components {
+  .monopoly-board {
+    display: grid;
+    grid-template-columns: repeat(11, 1fr);
+    grid-template-rows: repeat(11, 1fr);
+    aspect-ratio: 1 / 1;
+    width: 100%;
+    max-width: 90vh;
+    max-height: 90vh;
+    margin: 0 auto;
+    position: relative;
+    border: 4px solid var(--monopoly-dark-green);
+    background-color: var(--monopoly-dark-green);
+    gap: 1px;
+    box-sizing: border-box;
+  }
 
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
+  .tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    text-align: center;
+    background-color: var(--monopoly-green);
+    position: relative;
+    padding: 4px 2px;
+    box-sizing: border-box;
+    overflow: hidden;
+    color: #1e293b;
+    font-size: 0.65rem;
+    font-weight: 700;
+    line-height: 1.1;
+  }
 
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-}
+  .tile-name {
+    text-transform: uppercase;
+    word-break: break-word;
+    z-index: 10;
+  }
 
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  .tile-price {
+    font-size: 0.55rem;
+    z-index: 10;
+  }
+
+  .tile-color-bar {
+    position: absolute;
+    z-index: 5;
+  }
+
+  /* Responsive Adjustments */
+  @media (max-width: 768px) {
+    .monopoly-board {
+      max-width: 95vw;
+    }
+    .tile {
+      font-size: 0.5rem;
+      padding: 2px 1px;
+    }
+    .tile-price {
+      font-size: 0.45rem;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .monopoly-board {
+      gap: 1px;
+    }
+    .tile {
+      font-size: 0.4rem;
+    }
+    .tile-price {
+      display: none; /* Hide price on very small screens to save space */
+    }
+  }
+
+  /* Side Specific Rotations and Layouts */
+  .tile-top { flex-direction: column-reverse; }
+  .tile-left { flex-direction: row-reverse; }
+  .tile-right { flex-direction: row; }
+
+  .tile-left .tile-name, .tile-right .tile-name {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+  }
+
+  .tile-color-top { top: 0; left: 0; right: 0; height: 20%; border-bottom: 1px solid rgba(0,0,0,0.1); }
+  .tile-color-bottom { bottom: 0; left: 0; right: 0; height: 20%; border-top: 1px solid rgba(0,0,0,0.1); }
+  .tile-color-left { right: 0; top: 0; bottom: 0; width: 20%; border-left: 1px solid rgba(0,0,0,0.1); }
+  .tile-color-right { left: 0; top: 0; bottom: 0; width: 20%; border-right: 1px solid rgba(0,0,0,0.1); }
+
+  .center-area {
+    grid-column: 2 / 11;
+    grid-row: 2 / 11;
+    background-color: var(--monopoly-green);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .monopoly-logo {
+    font-size: clamp(2rem, 8vw, 5rem);
+    font-weight: 900;
+    color: #ef4444; /* Red logo */
+    text-shadow: 2px 2px 0px #000;
+    transform: rotate(-45deg);
+    border: 4px solid #ef4444;
+    padding: 0.5rem 1rem;
+    background: white;
+    letter-spacing: -2px;
+  }
 }
