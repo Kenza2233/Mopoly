@@ -5,12 +5,13 @@ import { calculateRent } from '../utils/finance';
 import { Player, BoardTile } from '../types';
 import { getAIDecision, getAIDelay } from '../utils/ai-decisions';
 import { delay, getMovementPath } from '../utils/animation';
+import { handlePassingGo, handleRentPayment } from '../utils/transactions';
 
 export const useGameActions = () => {
   const handleLanding = useCallback(async (player: Player, tile: BoardTile, diceRoll: number) => {
     const {
       updatePlayer, addLog, buyProperty, setPurchaseModal, board, settings,
-      players, drawCard, isGameOver
+      players, drawCard, isGameOver, deductCash
     } = useGameStore.getState();
 
     if (isGameOver) return;
@@ -27,7 +28,7 @@ export const useGameActions = () => {
 
     if (tile.type === 'tax') {
       const taxAmount = tile.price;
-      updatePlayer(player.id, { cash: player.cash - taxAmount });
+      deductCash(player.id, taxAmount);
       addLog(`${player.name} paid $${taxAmount} in taxes`, 'danger');
       return;
     }
@@ -58,15 +59,11 @@ export const useGameActions = () => {
         if (tile.type === 'utility') {
           rent = rent * diceRoll;
         }
-        const owner = players.find(p => p.id === tile.ownerId);
-        if (owner) {
-          updatePlayer(player.id, { cash: player.cash - rent });
-          updatePlayer(owner.id, { cash: owner.cash + rent });
-          addLog(`${player.name} paid $${rent} rent to ${owner.name}`, 'warning');
 
-          if (player.cash - rent < 0) {
-            handleBankruptcy(player.id);
-          }
+        handleRentPayment(player.id, tile.ownerId, rent);
+
+        if (player.cash - rent < 0) {
+          handleBankruptcy(player.id);
         }
       }
     }
@@ -91,7 +88,7 @@ export const useGameActions = () => {
   }, []);
 
   const handleMove = useCallback(async (steps: number) => {
-    const { players, currentPlayerIndex, board, updatePlayer, addLog, settings } = useGameStore.getState();
+    const { players, currentPlayerIndex, board, updatePlayer, settings } = useGameStore.getState();
     const currentPlayer = players[currentPlayerIndex];
     if (!currentPlayer || currentPlayer.isBankrupt) return;
 
@@ -100,11 +97,11 @@ export const useGameActions = () => {
         if (steps === 0) {
              // Teleported
         } else {
-            addLog(`${currentPlayer.name} is in JAIL and cannot move.`, 'warning');
+            useGameStore.getState().addLog(`${currentPlayer.name} is in JAIL and cannot move.`, 'warning');
             updatePlayer(currentPlayer.id, { jailTurns: currentPlayer.jailTurns + 1 });
             if (currentPlayer.jailTurns >= 2) {
                 updatePlayer(currentPlayer.id, { isInJail: false, jailTurns: 0 });
-                addLog(`${currentPlayer.name} paid fine and left JAIL.`, 'info');
+                useGameStore.getState().addLog(`${currentPlayer.name} paid fine and left JAIL.`, 'info');
             }
             return;
         }
@@ -115,19 +112,12 @@ export const useGameActions = () => {
     // Animate movement step by step
     for (const pos of path) {
       const isPassingGo = pos === 0;
-      let cashUpdate = 0;
 
       if (isPassingGo) {
-        const goBonus = Math.round((settings.finance.startingCash / 1500) * 200);
-        cashUpdate = goBonus;
-        addLog(`${currentPlayer.name} passed GO and collected $${goBonus}`, 'success');
+        handlePassingGo(currentPlayer.id);
       }
 
-      updatePlayer(currentPlayer.id, {
-        position: pos,
-        cash: (useGameStore.getState().players[currentPlayerIndex].cash || 0) + cashUpdate
-      });
-
+      updatePlayer(currentPlayer.id, { position: pos });
       await delay(250);
     }
 
@@ -166,7 +156,6 @@ export const useGameActions = () => {
       while (useGameStore.getState().activeCard && safetyCounter < 50) {
         await delay(500);
         if (safetyCounter === 10) {
-            // Close it automatically after some time if it gets stuck
             useGameStore.getState().closeCard();
         }
         safetyCounter++;

@@ -87,8 +87,19 @@ body {
       font-size: 0.4rem;
     }
     .tile-price {
-      display: none; /* Hide price on very small screens to save space */
+      display: none;
     }
+  }
+
+  /* Animation untuk duit berubah */
+  @keyframes money-update {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); color: rgb(34, 197, 94); }
+    100% { transform: scale(1); }
+  }
+
+  .money-updating {
+    animation: money-update 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   }
 
   /* Side Specific Rotations and Layouts */
@@ -121,7 +132,7 @@ body {
   .monopoly-logo {
     font-size: clamp(2rem, 8vw, 5rem);
     font-weight: 900;
-    color: #ef4444; /* Red logo */
+    color: #ef4444;
     text-shadow: 2px 2px 0px #000;
     transform: rotate(-45deg);
     border: 4px solid #ef4444;

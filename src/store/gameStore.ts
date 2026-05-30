@@ -4,8 +4,9 @@ import { Player, BoardTile, GameStatus, GameLogEntry } from '../types';
 import { GameSettings, GameCard } from '../types/settings';
 import { DEFAULT_SETTINGS } from '../constants/defaultSettings';
 import { OFFICIAL_BOARD_DATA } from '../constants/monopolyOfficial';
-import { calculateDynamicPrice, getScaledProperty } from '../utils/finance';
+import { getScaledProperty } from '../utils/finance';
 import { CHANCE_CARDS, COMMUNITY_CHEST_CARDS } from '../constants/cards';
+import { handleCardTransaction } from '../utils/transactions';
 
 interface GameState {
   // State
@@ -29,13 +30,20 @@ interface GameState {
   // Actions
   updateSettings: (settings: Partial<GameSettings>) => void;
   startGame: () => void;
+
+  // ✅ Money Management Actions
+  addCash: (playerId: string, amount: number) => void;
+  deductCash: (playerId: string, amount: number) => void;
+  updateCash: (playerId: string, amount: number) => void;
+  payRent: (fromPlayerId: string, toPlayerId: string, amount: number) => void;
+  collectSalary: (playerId: string, amount?: number) => void;
+
   updatePlayer: (playerId: string, updates: Partial<Player>) => void;
   updateTile: (tileId: number, updates: Partial<BoardTile>) => void;
   rollDice: () => [number, number];
   setDiceRolled: (rolled: boolean) => void;
   movePlayer: (playerId: string, toPosition: number) => void;
   buyProperty: (playerId: string, tileId: number) => void;
-  payRent: (fromPlayerId: string, toPlayerId: string, amount: number) => void;
   nextTurn: () => void;
   addLog: (message: string, type?: 'info' | 'success' | 'warning' | 'danger') => void;
   setPurchaseModal: (show: boolean, tile: BoardTile | null) => void;
@@ -114,6 +122,37 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
   },
 
+  // ✅ Immuntable Cash Actions
+  addCash: (playerId, amount) => set((state) => ({
+    players: state.players.map(p => p.id === playerId ? { ...p, cash: p.cash + amount } : p)
+  })),
+
+  deductCash: (playerId, amount) => set((state) => ({
+    players: state.players.map(p => p.id === playerId ? { ...p, cash: p.cash - amount } : p)
+  })),
+
+  updateCash: (playerId, amount) => set((state) => ({
+    players: state.players.map(p => p.id === playerId ? { ...p, cash: amount } : p)
+  })),
+
+  payRent: (fromId, toId, amount) => set((state) => ({
+    players: state.players.map(p => {
+      if (p.id === fromId) return { ...p, cash: p.cash - amount };
+      if (p.id === toId) return { ...p, cash: p.cash + amount };
+      return p;
+    })
+  })),
+
+  collectSalary: (playerId, amount = 200) => {
+    const { settings } = get();
+    const multiplier = settings.finance.startingCash / 1500;
+    const scaledAmount = Math.round((amount * multiplier) / 50) * 50;
+
+    set((state) => ({
+      players: state.players.map(p => p.id === playerId ? { ...p, cash: p.cash + scaledAmount } : p)
+    }));
+  },
+
   updatePlayer: (id, updates) => set((state) => ({
     players: state.players.map(p => p.id === id ? { ...p, ...updates } : p)
   })),
@@ -133,15 +172,9 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   setIsMoving: (moving) => set({ isMoving: moving }),
 
-  movePlayer: (playerId, toPosition) => set((state) => {
-    const players = state.players.map(p => {
-      if (p.id === playerId) {
-        return { ...p, position: toPosition };
-      }
-      return p;
-    });
-    return { players };
-  }),
+  movePlayer: (playerId, toPosition) => set((state) => ({
+    players: state.players.map(p => p.id === playerId ? { ...p, position: toPosition } : p)
+  })),
 
   drawCard: (type) => {
     const cards = type === 'chance' ? CHANCE_CARDS : COMMUNITY_CHEST_CARDS;
@@ -155,9 +188,10 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     const player = players[currentPlayerIndex];
 
-    if (activeCard.action === 'money') {
-      updatePlayer(player.id, { cash: player.cash + activeCard.amount });
-    } else if (activeCard.action === 'jail') {
+    // ✅ Use transactional transaction helper
+    handleCardTransaction(player.id, activeCard);
+
+    if (activeCard.action === 'jail') {
       updatePlayer(player.id, { position: 10, isInJail: true, jailTurns: 0 });
     } else if (activeCard.action === 'move' && activeCard.targetPosition !== undefined) {
       updatePlayer(player.id, { position: activeCard.targetPosition });
@@ -192,15 +226,6 @@ export const useGameStore = create<GameState>((set, get) => ({
       board,
       gameLog: [{ id: Math.random().toString(), timestamp: Date.now(), message: `🏡 ${playerName} bought ${tile.name}`, type: 'success' }, ...state.gameLog]
     };
-  }),
-
-  payRent: (fromId, toId, amount) => set((state) => {
-    const players = state.players.map(p => {
-      if (p.id === fromId) return { ...p, cash: p.cash - amount };
-      if (p.id === toId) return { ...p, cash: p.cash + amount };
-      return p;
-    });
-    return { players };
   }),
 
   nextTurn: () => set((state) => {
