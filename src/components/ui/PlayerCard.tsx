@@ -27,9 +27,11 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isActive }) => {
           className="w-10 h-10 rounded-full border-2 border-white/50"
           style={{ backgroundColor: player.color }}
         />
-        <div>
-          <div className="font-black text-white uppercase text-sm leading-tight">{player.name}</div>
-          <div className="text-white/60 text-xs font-bold uppercase">{player.type}</div>
+        <div className="overflow-hidden">
+          <div className="font-black text-white uppercase text-sm leading-tight truncate">{player.name}</div>
+          <div className="text-white/60 text-[10px] font-bold uppercase">
+            {player.type === 'ai' ? `AI Bot • ${player.movesCount} rds` : 'Human'}
+          </div>
         </div>
       </div>
 

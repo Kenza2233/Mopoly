@@ -14,4 +14,5 @@ export interface Player {
   isInJail: boolean;
   jailTurns: number;
   getOutCards: number;
+  movesCount: number; // Added to track early game rounds
 }

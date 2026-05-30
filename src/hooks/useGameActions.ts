@@ -3,12 +3,11 @@ import { useCallback } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { calculateRent } from '../utils/finance';
 import { Player, BoardTile } from '../types';
+import { getAIDecision, getAIDelay } from '../utils/ai-decisions';
 
 export const useGameActions = () => {
-  const store = useGameStore();
-
   const handleLanding = useCallback((player: Player, tile: BoardTile, diceRoll: number) => {
-    const { updatePlayer, addLog, buyProperty, setPurchaseModal, board } = useGameStore.getState();
+    const { updatePlayer, addLog, buyProperty, setPurchaseModal, board, settings, totalMoves } = useGameStore.getState();
 
     addLog(`${player.name} landed on ${tile.name}`);
 
@@ -28,8 +27,11 @@ export const useGameActions = () => {
     if (['property', 'railroad', 'utility'].includes(tile.type)) {
       if (!tile.ownerId) {
         if (player.type === 'ai') {
-          if (player.cash >= tile.price * 1.2) {
+          const decision = getAIDecision(player, tile, board, settings, totalMoves);
+          if (decision.action === 'buy') {
             buyProperty(player.id, tile.id);
+          } else {
+            addLog(`${player.name} skipped ${tile.name} (${decision.reason})`, 'info');
           }
         } else {
           if (player.cash >= tile.price) {
@@ -73,21 +75,6 @@ export const useGameActions = () => {
     }
   }, []);
 
-  const buyProperty = useCallback((playerId: string, tileId: number) => {
-    const { players, board, updatePlayer, updateTile, addLog } = useGameStore.getState();
-    const player = players.find(p => p.id === playerId);
-    const tile = board.find(t => t.id === tileId);
-
-    if (player && tile && player.cash >= tile.price) {
-      updatePlayer(playerId, {
-        cash: player.cash - tile.price,
-        properties: [...player.properties, tileId]
-      });
-      updateTile(tileId, { ownerId: playerId });
-      addLog(`${player.name} bought ${tile.name} for $${tile.price}`, 'success');
-    }
-  }, []);
-
   const handleMove = useCallback((steps: number) => {
     const { players, currentPlayerIndex, board, updatePlayer, addLog, settings } = useGameStore.getState();
     const currentPlayer = players[currentPlayerIndex];
@@ -95,38 +82,43 @@ export const useGameActions = () => {
 
     let newPosition = (currentPlayer.position + steps) % 40;
 
-    if (newPosition < currentPlayer.position) {
-      const goBonus = Math.round((settings.startingCash / 1500) * 200);
-      updatePlayer(currentPlayer.id, {
-        position: newPosition,
-        cash: currentPlayer.cash + goBonus
-      });
+    const goBonus = Math.round((settings.finance.startingCash / 1500) * 200);
+    const passedGo = newPosition < currentPlayer.position;
+
+    const updates: Partial<Player> = {
+      position: newPosition,
+      movesCount: currentPlayer.movesCount + 1
+    };
+
+    if (passedGo) {
+      updates.cash = currentPlayer.cash + goBonus;
       addLog(`${currentPlayer.name} passed GO and collected $${goBonus}`, 'success');
-    } else {
-      updatePlayer(currentPlayer.id, { position: newPosition });
     }
+
+    updatePlayer(currentPlayer.id, updates);
 
     const landTile = board[newPosition];
     handleLanding(currentPlayer, landTile, steps);
   }, [handleLanding]);
 
   const performAITurn = useCallback(async () => {
-    const { players, currentPlayerIndex, rollDice, nextTurn } = useGameStore.getState();
+    const { players, currentPlayerIndex, rollDice, nextTurn, settings } = useGameStore.getState();
     const currentPlayer = players[currentPlayerIndex];
 
     if (currentPlayer && currentPlayer.type === 'ai' && !currentPlayer.isBankrupt) {
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const difficulty = settings.players.find(p => p.id === currentPlayer.id)?.aiDifficulty || 'medium';
+      await new Promise(resolve => setTimeout(resolve, getAIDelay(difficulty)));
+
       const [d1, d2] = rollDice();
       handleMove(d1 + d2);
 
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await new Promise(resolve => setTimeout(resolve, 1000));
       nextTurn();
     }
   }, [handleMove]);
 
   return {
     handleMove,
-    buyProperty,
     performAITurn,
   };
 };

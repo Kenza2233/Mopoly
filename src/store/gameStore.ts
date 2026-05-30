@@ -7,6 +7,7 @@ import { getScaledProperty } from '../utils/finance';
 
 interface GameStore extends GameState {
   settings: GameSettings;
+  totalMoves: number;
   setSettings: (settings: Partial<GameSettings>) => void;
   initGame: () => void;
   nextTurn: () => void;
@@ -16,9 +17,10 @@ interface GameStore extends GameState {
   rollDice: (forced?: [number, number]) => [number, number];
   setGameOver: (winner: Player) => void;
   setPurchaseModal: (show: boolean, tile: BoardTile | null) => void;
+  buyProperty: (playerId: string, tileId: number) => void;
+  buildHouse: (tileId: number) => void;
+  toggleMortgage: (tileId: number) => void;
 }
-
-const colors = ['#f01b1b', '#0072bb', '#ffed00', '#1f363d'];
 
 export const useGameStore = create<GameStore>((set, get) => ({
   players: [],
@@ -31,6 +33,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   winner: null,
   status: 'waiting',
   settings: DEFAULT_SETTINGS,
+  totalMoves: 0,
   showPurchaseModal: false,
   pendingPurchaseTile: null,
 
@@ -41,49 +44,40 @@ export const useGameStore = create<GameStore>((set, get) => ({
   initGame: () => {
     const { settings } = get();
     const scaledBoard: BoardTile[] = OFFICIAL_BOARD_DATA.map(prop => ({
-      ...getScaledProperty(prop, settings.startingCash),
+      ...getScaledProperty(prop, settings.finance.startingCash, {
+        price: settings.board.propertyPriceMultiplier,
+        rent: settings.board.rentMultiplier,
+        build: settings.board.buildingCostMultiplier,
+      }),
       houses: 0,
       isMortgaged: false,
     }));
 
-    const initialPlayers: Player[] = [
-      {
-        id: 'player-1',
-        name: 'You (Human)',
-        type: 'human',
-        color: colors[0],
-        cash: settings.startingCash,
-        position: 0,
-        properties: [],
-        isBankrupt: false,
-        isInJail: false,
-        jailTurns: 0,
-        getOutCards: 0,
-      },
-      ...Array.from({ length: 3 }).map((_, i) => ({
-        id: `ai-${i + 1}`,
-        name: `AI Opponent ${i + 1}`,
-        type: 'ai' as const,
-        color: colors[i + 1],
-        cash: settings.startingCash,
-        position: 0,
-        properties: [],
-        isBankrupt: false,
-        isInJail: false,
-        jailTurns: 0,
-        getOutCards: 0,
-      }))
-    ];
+    const initialPlayers: Player[] = settings.players.map(p => ({
+      id: p.id,
+      name: p.name,
+      type: p.isAI ? 'ai' : 'human',
+      color: p.tokenColor,
+      cash: settings.finance.startingCash,
+      position: 0,
+      properties: [],
+      isBankrupt: false,
+      isInJail: false,
+      jailTurns: 0,
+      getOutCards: 0,
+      movesCount: 0,
+    }));
 
     set({
       players: initialPlayers,
       board: scaledBoard,
       currentPlayerIndex: 0,
       isDiceRolled: false,
-      gameLog: [{ id: '1', timestamp: Date.now(), message: 'Game started!', type: 'info' }],
+      gameLog: [{ id: '1', timestamp: Date.now(), message: 'Game started with custom settings!', type: 'info' }],
       isGameOver: false,
       winner: null,
       status: 'playing',
+      totalMoves: 0,
     });
   },
 
@@ -91,7 +85,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { players, currentPlayerIndex } = get();
     let nextIndex = (currentPlayerIndex + 1) % players.length;
 
-    // Skip bankrupt players
     while (players[nextIndex].isBankrupt && players.filter(p => !p.isBankrupt).length > 1) {
       nextIndex = (nextIndex + 1) % players.length;
     }
@@ -102,9 +95,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
-  updatePlayer: (id, updates) => set((state) => ({
-    players: state.players.map(p => p.id === id ? { ...p, ...updates } : p)
-  })),
+  updatePlayer: (id, updates) => set((state) => {
+    const newPlayers = state.players.map(p => p.id === id ? { ...p, ...updates } : p);
+    const movesAdded = updates.position !== undefined ? 1 : 0;
+    return {
+      players: newPlayers,
+      totalMoves: state.totalMoves + movesAdded
+    };
+  }),
 
   updateTile: (id, updates) => set((state) => ({
     board: state.board.map(t => t.id === id ? { ...t, ...updates } : t)
@@ -126,4 +124,66 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setGameOver: (winner) => set({ isGameOver: true, winner, status: 'paused' }),
 
   setPurchaseModal: (show, tile) => set({ showPurchaseModal: show, pendingPurchaseTile: tile }),
+
+  buyProperty: (playerId, tileId) => set((state) => {
+    const player = state.players.find(p => p.id === playerId);
+    const tile = state.board.find(t => t.id === tileId);
+
+    if (player && tile && player.cash >= tile.price) {
+      return {
+        players: state.players.map(p => p.id === playerId ? {
+          ...p,
+          cash: p.cash - tile.price,
+          properties: [...p.properties, tileId]
+        } : p),
+        board: state.board.map(t => t.id === tileId ? { ...t, ownerId: playerId } : t),
+        gameLog: [
+          { id: Math.random().toString(36).substr(2, 9), timestamp: Date.now(), message: `${player.name} bought ${tile.name} for $${tile.price}`, type: 'success' },
+          ...state.gameLog.slice(0, 49)
+        ]
+      };
+    }
+    return state;
+  }),
+
+  buildHouse: (tileId) => set((state) => {
+    const tile = state.board.find(t => t.id === tileId);
+    const owner = state.players.find(p => p.id === tile?.ownerId);
+
+    if (!tile || !owner || !tile.housePrice || owner.cash < tile.housePrice || tile.houses >= 5 || tile.isMortgaged) return state;
+
+    // Check for monopoly
+    const groupTiles = state.board.filter(t => t.group === tile.group);
+    const hasMonopoly = groupTiles.every(t => t.ownerId === owner.id && !t.isMortgaged);
+    if (!hasMonopoly) return state;
+
+    return {
+      players: state.players.map(p => p.id === owner.id ? { ...p, cash: p.cash - (tile.housePrice || 0) } : p),
+      board: state.board.map(t => t.id === tileId ? { ...t, houses: t.houses + 1 } : t),
+      gameLog: [
+        { id: Math.random().toString(36).substr(2, 9), timestamp: Date.now(), message: `${owner.name} built a ${tile.houses === 4 ? 'hotel' : 'house'} on ${tile.name}`, type: 'success' },
+        ...state.gameLog.slice(0, 49)
+      ]
+    };
+  }),
+
+  toggleMortgage: (tileId) => set((state) => {
+    const tile = state.board.find(t => t.id === tileId);
+    const owner = state.players.find(p => p.id === tile?.ownerId);
+    if (!tile || !owner || tile.houses > 0) return state;
+
+    const newMortgagedState = !tile.isMortgaged;
+    const cashChange = newMortgagedState ? tile.mortgageValue : -Math.round(tile.mortgageValue * 1.1);
+
+    if (!newMortgagedState && owner.cash < Math.abs(cashChange)) return state;
+
+    return {
+      players: state.players.map(p => p.id === owner.id ? { ...p, cash: p.cash + cashChange } : p),
+      board: state.board.map(t => t.id === tileId ? { ...t, isMortgaged: newMortgagedState } : t),
+      gameLog: [
+        { id: Math.random().toString(36).substr(2, 9), timestamp: Date.now(), message: `${owner.name} ${newMortgagedState ? 'mortgaged' : 'redeemed'} ${tile.name}`, type: 'info' },
+        ...state.gameLog.slice(0, 49)
+      ]
+    };
+  }),
 }));

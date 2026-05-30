@@ -4,6 +4,7 @@ import { BoardTile, Player } from '../../types';
 import { formatCurrency } from '../../utils/currency';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { PROPERTY_GROUP_COLORS } from '../../constants/colors';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -15,17 +16,6 @@ interface TileProps {
   isSide?: 'top' | 'right' | 'bottom' | 'left';
   isCorner?: boolean;
 }
-
-const colorMap: Record<string, string> = {
-  brown: 'bg-amber-900',
-  lightBlue: 'bg-sky-300',
-  pink: 'bg-pink-500',
-  orange: 'bg-orange-500',
-  red: 'bg-red-600',
-  yellow: 'bg-yellow-400',
-  green: 'bg-green-600',
-  darkBlue: 'bg-blue-800',
-};
 
 export const Tile: React.FC<TileProps> = ({ tile, players, isSide, isCorner }) => {
   const presentPlayers = players.filter(p => p.position === tile.position && !p.isBankrupt);
@@ -41,14 +31,16 @@ export const Tile: React.FC<TileProps> = ({ tile, players, isSide, isCorner }) =
     )}>
       {/* Color Strip */}
       {tile.group && (
-        <div className={cn(
-          "absolute",
-          colorMap[tile.group],
-          (isSide === 'bottom' || !isSide) && "top-0 left-0 right-0 h-1/4 border-b border-monopoly-darkGreen/20",
+        <div
+          className={cn(
+            "absolute",
+            (isSide === 'bottom' || !isSide) && "top-0 left-0 right-0 h-1/4 border-b border-monopoly-darkGreen/20",
           isSide === 'top' && "bottom-0 left-0 right-0 h-1/4 border-t border-monopoly-darkGreen/20",
           isSide === 'left' && "right-0 top-0 bottom-0 w-1/4 border-l border-monopoly-darkGreen/20",
-          isSide === 'right' && "left-0 top-0 bottom-0 w-1/4 border-r border-monopoly-darkGreen/20"
-        )} />
+            isSide === 'right' && "left-0 top-0 bottom-0 w-1/4 border-r border-monopoly-darkGreen/20"
+          )}
+          style={{ backgroundColor: PROPERTY_GROUP_COLORS[tile.group] }}
+        />
       )}
 
       {/* Content */}
@@ -73,6 +65,31 @@ export const Tile: React.FC<TileProps> = ({ tile, players, isSide, isCorner }) =
           />
         ))}
       </div>
+
+      {/* Houses/Hotel Indicator */}
+      {tile.houses > 0 && !tile.isMortgaged && (
+        <div className={cn(
+          "absolute flex gap-0.5 z-30",
+          isSide === 'bottom' || !isSide ? "top-1" :
+          isSide === 'top' ? "bottom-1" :
+          isSide === 'left' ? "right-1 flex-col" : "left-1 flex-col"
+        )}>
+          {tile.houses === 5 ? (
+            <div className="w-2 h-2 bg-red-600 rounded-sm shadow-sm" title="Hotel" />
+          ) : (
+            Array.from({ length: tile.houses }).map((_, i) => (
+              <div key={i} className="w-1.5 h-1.5 bg-green-500 rounded-full shadow-sm" title="House" />
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Mortgaged Overlay */}
+      {tile.isMortgaged && (
+        <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-30 pointer-events-none">
+          <span className="text-[8px] font-black text-white/50 rotate-45 uppercase">Mortgaged</span>
+        </div>
+      )}
 
       {/* Ownership Indicator */}
       {owner && (

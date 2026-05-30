@@ -1,18 +1,31 @@
 // src/utils/finance.ts
 import { Property, BoardTile } from '../types';
 
-export const calculateScaledValue = (baseValue: number, startingCash: number): number => {
-  const multiplier = startingCash / 1500;
-  return Math.round((baseValue * multiplier) / 10) * 10;
+export const calculateDynamicPrice = (
+  basePrice: number,
+  startingCash: number,
+  baseStartingCash: number = 1500
+): number => {
+  const multiplier = startingCash / baseStartingCash;
+  // Bulatkan ke kelipatan $50 agar UI rapi
+  return Math.round((basePrice * multiplier) / 50) * 50;
 };
 
-export const getScaledProperty = (property: Property, startingCash: number): Property => {
+export const getScaledProperty = (
+  property: Property,
+  startingCash: number,
+  multipliers: { price: number; rent: number; build: number }
+): Property => {
+  const dynamicMultiplier = startingCash / 1500;
+
   return {
     ...property,
-    price: calculateScaledValue(property.price, startingCash),
-    rent: property.rent.map(r => calculateScaledValue(r, startingCash)),
-    housePrice: property.housePrice ? calculateScaledValue(property.housePrice, startingCash) : undefined,
-    mortgageValue: calculateScaledValue(property.mortgageValue, startingCash),
+    price: Math.round((property.price * dynamicMultiplier * multipliers.price) / 50) * 50,
+    rent: property.rent.map(r => Math.round((r * dynamicMultiplier * multipliers.rent) / 10) * 10),
+    housePrice: property.housePrice
+      ? Math.round((property.housePrice * dynamicMultiplier * multipliers.build) / 50) * 50
+      : undefined,
+    mortgageValue: Math.round((property.mortgageValue * dynamicMultiplier) / 50) * 50,
   };
 };
 
@@ -21,7 +34,6 @@ export const calculateRent = (tile: BoardTile, allTiles: BoardTile[]): number =>
     if (tile.houses > 0) {
       return tile.rent[tile.houses];
     }
-    // Check if owner has full set
     const groupTiles = allTiles.filter(t => t.group === tile.group);
     const hasFullSet = groupTiles.every(t => t.ownerId === tile.ownerId && !t.isMortgaged);
     return hasFullSet ? tile.rent[0] * 2 : tile.rent[0];
@@ -34,8 +46,6 @@ export const calculateRent = (tile: BoardTile, allTiles: BoardTile[]): number =>
 
   if (tile.type === 'utility') {
     const ownedUtilities = allTiles.filter(t => t.type === 'utility' && t.ownerId === tile.ownerId && !t.isMortgaged).length;
-    // For simplicity, we use fixed rent from the array [4, 10] multiplied by dice roll elsewhere
-    // but here we just return the multiplier
     return tile.rent[ownedUtilities - 1] || 0;
   }
 
