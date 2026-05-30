@@ -1,159 +1,141 @@
 // src/components/settings/SettingsModal.tsx
-import React, { useState } from 'react';
+import React from 'react';
 import { useGameStore } from '../../store/gameStore';
-import { PlayerSettings, GameSettings, FinanceSettings } from '../../types';
-import { DEFAULT_SETTINGS } from '../../constants/defaultSettings';
+import { clsx } from 'clsx';
 
 export const SettingsModal: React.FC = () => {
-  const { settings, setSettings, initGame, status } = useGameStore();
-  const [localSettings, setLocalSettings] = useState<GameSettings>(settings);
+  const { status, settings, updateSettings, startGame } = useGameStore();
 
-  const handleStart = () => {
-    setSettings(localSettings);
-    initGame();
+  if (status !== 'setup') return null;
+
+  const handleToggle = (key: keyof typeof settings.board) => {
+    updateSettings({
+      board: {
+        ...settings.board,
+        [key]: !settings.board[key as keyof typeof settings.board]
+      }
+    });
   };
-
-  const updatePlayer = (id: string, updates: Partial<PlayerSettings>) => {
-    setLocalSettings(prev => ({
-      ...prev,
-      players: prev.players.map(p => p.id === id ? { ...p, ...updates } : p)
-    }));
-  };
-
-  if (status !== 'waiting' && status !== 'paused') return null;
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-monopoly-darkGreen p-6 md:p-8 rounded-2xl border-4 border-monopoly-green max-w-4xl w-full shadow-2xl my-8">
-        <h2 className="text-3xl font-black text-white uppercase mb-6 text-center tracking-tight">Advanced Settings</h2>
+    <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-xl z-[80] flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-white/95 w-full max-w-4xl rounded-[2.5rem] shadow-[0_0_100px_rgba(0,0,0,0.5)] overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-500">
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Section 1: Players */}
-          <div className="space-y-4">
-            <h3 className="text-monopoly-green font-black uppercase text-sm border-b border-monopoly-green/20 pb-2">👥 Players & AI</h3>
-            {localSettings.players.map((p, idx) => (
-              <div key={p.id} className="bg-white/5 p-3 rounded-lg space-y-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-4 h-4 rounded-full" style={{ backgroundColor: p.tokenColor }} />
+        {/* Header */}
+        <div className="bg-monopoly-darkGreen p-8 text-center relative overflow-hidden">
+          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
+          <h1 className="text-4xl font-black text-white uppercase tracking-tighter relative z-10">
+            Game Setup
+          </h1>
+          <p className="text-monopoly-green/60 font-bold uppercase tracking-widest text-sm mt-1 relative z-10">
+            Configure your business empire
+          </p>
+        </div>
+
+        <div className="p-8 lg:p-12">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+
+            {/* Economy Section */}
+            <div className="space-y-8">
+              <h2 className="text-xl font-black text-slate-800 uppercase flex items-center gap-3">
+                <span className="w-8 h-8 bg-slate-800 text-white rounded-lg flex items-center justify-center">💰</span>
+                Economy
+              </h2>
+
+              <div className="space-y-6">
+                <div>
+                  <div className="flex justify-between mb-2">
+                    <label className="font-bold text-slate-600 uppercase text-xs">Starting Cash</label>
+                    <span className="font-black text-monopoly-darkGreen">${settings.finance.startingCash.toLocaleString()}</span>
+                  </div>
                   <input
-                    type="text"
-                    value={p.name}
-                    onChange={(e) => updatePlayer(p.id, { name: e.target.value.slice(0, 20) })}
-                    disabled={p.isAI && false} // Allowing rename for AI too
-                    placeholder={`Player ${idx + 1}`}
-                    className="bg-transparent text-white font-bold border-b border-white/10 focus:border-monopoly-green outline-none w-full"
+                    type="range" min="500" max="5000" step="500"
+                    value={settings.finance.startingCash}
+                    onChange={(e) => updateSettings({ finance: { ...settings.finance, startingCash: Number(e.target.value) } })}
+                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-monopoly-darkGreen"
                   />
                 </div>
-                {p.isAI && (
-                  <div className="flex gap-2">
-                    {['easy', 'medium', 'hard'].map(d => (
+
+                <div>
+                  <div className="flex justify-between mb-2">
+                    <label className="font-bold text-slate-600 uppercase text-xs">AI Difficulty</label>
+                    <span className="font-black text-monopoly-darkGreen uppercase text-xs">{settings.players[1].aiDifficulty}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['easy', 'medium', 'hard'] as const).map(diff => (
                       <button
-                        key={d}
-                        onClick={() => updatePlayer(p.id, { aiDifficulty: d as 'easy' | 'medium' | 'hard' })}
-                        className={`text-[10px] px-2 py-1 rounded uppercase font-bold transition-colors ${
-                          p.aiDifficulty === d ? 'bg-monopoly-green text-monopoly-darkGreen' : 'bg-white/10 text-white/60'
-                        }`}
+                        key={diff}
+                        onClick={() => {
+                          const newPlayers = settings.players.map(p => p.isAI ? { ...p, aiDifficulty: diff } : p);
+                          updateSettings({ players: newPlayers });
+                        }}
+                        className={clsx(
+                          "py-2 rounded-xl font-black uppercase text-xs transition-all border-2",
+                          settings.players[1].aiDifficulty === diff
+                            ? "bg-monopoly-darkGreen border-monopoly-darkGreen text-white shadow-lg"
+                            : "bg-white border-slate-200 text-slate-400 hover:border-slate-300"
+                        )}
                       >
-                        {d}
+                        {diff}
                       </button>
                     ))}
                   </div>
-                )}
-              </div>
-            ))}
-          </div>
-
-          <div className="space-y-6">
-            {/* Section 2: Finance */}
-            <div className="space-y-4">
-              <h3 className="text-monopoly-green font-black uppercase text-sm border-b border-monopoly-green/20 pb-2">💰 Finance & Scale</h3>
-              <div>
-                <label className="block text-white/40 text-[10px] font-bold uppercase mb-1">Starting Cash</label>
-                <div className="flex items-center gap-4">
-                  <input
-                    type="range" min="500" max="5000" step="100"
-                    value={localSettings.finance.startingCash}
-                    onChange={(e) => setLocalSettings(prev => ({ ...prev, finance: { ...prev.finance, startingCash: Number(e.target.value) } }))}
-                    className="flex-1 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-monopoly-green"
-                  />
-                  <span className="text-white font-black text-sm w-16 text-right">${localSettings.finance.startingCash}</span>
                 </div>
               </div>
             </div>
 
-            {/* Section 3: Board Multipliers */}
-            <div className="space-y-4">
-              <h3 className="text-monopoly-green font-black uppercase text-sm border-b border-monopoly-green/20 pb-2">🎲 Board Rules</h3>
-              <div className="grid grid-cols-1 gap-3">
+            {/* Rules Section */}
+            <div className="space-y-8">
+              <h2 className="text-xl font-black text-slate-800 uppercase flex items-center gap-3">
+                <span className="w-8 h-8 bg-slate-800 text-white rounded-lg flex items-center justify-center">⚖️</span>
+                Game Rules
+              </h2>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {[
-                  { label: 'Property Price', key: 'propertyPriceMultiplier' },
-                  { label: 'Rent Multiplier', key: 'rentMultiplier' },
-                  { label: 'Building Cost', key: 'buildingCostMultiplier' }
-                ].map(item => (
-                  <div key={item.key}>
-                    <label className="block text-white/40 text-[10px] font-bold uppercase mb-1">{item.label}</label>
-                    <div className="flex items-center gap-4">
-                      <input
-                        type="range" min="0.5" max="3.0" step="0.1"
-                        value={localSettings.board[item.key as keyof typeof localSettings.board] as number}
-                        onChange={(e) => setLocalSettings(prev => ({
-                          ...prev,
-                          board: { ...prev.board, [item.key]: Number(e.target.value) }
-                        }))}
-                        className="flex-1 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-monopoly-green"
-                      />
-                      <span className="text-white font-black text-sm w-10 text-right">{Number(localSettings.board[item.key as keyof typeof localSettings.board]).toFixed(1)}x</span>
+                  { key: 'enableChanceCards', label: 'Chance Cards', icon: '❓' },
+                  { key: 'enableCommunityChest', label: 'Community Chest', icon: '📦' },
+                  { key: 'enableHousesHotels', label: 'Build Houses', icon: '🏠' },
+                  { key: 'enableMortgage', label: 'Mortgaging', icon: '🏦' },
+                  { key: 'enableFreeParkingPrize', label: 'Free Parking Cash', icon: '🅿️' },
+                  { key: 'enableAuction', label: 'Property Auction', icon: '🔨' },
+                ].map((rule) => (
+                  <button
+                    key={rule.key}
+                    onClick={() => handleToggle(rule.key as keyof typeof settings.board)}
+                    className={clsx(
+                      "flex items-center justify-between p-4 rounded-2xl border-2 transition-all group",
+                      settings.board[rule.key as keyof typeof settings.board]
+                        ? "bg-monopoly-green/10 border-monopoly-green shadow-[0_4px_0_#cde6d0]"
+                        : "bg-white border-slate-100 text-slate-400"
+                    )}
+                  >
+                    <div className="flex flex-col items-start">
+                      <span className="text-xs font-black uppercase opacity-60">{rule.icon}</span>
+                      <span className="font-bold text-[11px] uppercase whitespace-nowrap">{rule.label}</span>
                     </div>
-                  </div>
+                    <div className={clsx(
+                      "w-10 h-5 rounded-full relative transition-colors",
+                      settings.board[rule.key as keyof typeof settings.board] ? "bg-green-500" : "bg-slate-200"
+                    )}>
+                      <div className={clsx(
+                        "absolute top-1 w-3 h-3 bg-white rounded-full transition-all",
+                        settings.board[rule.key as keyof typeof settings.board] ? "left-6" : "left-1"
+                      )} />
+                    </div>
+                  </button>
                 ))}
               </div>
             </div>
 
-            {/* Section 4: AI Behavior */}
-            <div className="space-y-4">
-              <h3 className="text-monopoly-green font-black uppercase text-sm border-b border-monopoly-green/20 pb-2">🤖 AI Behavior</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-white/40 text-[10px] font-bold uppercase mb-1">Early Caution (Rds)</label>
-                  <input
-                    type="number" min="0" max="20"
-                    value={localSettings.finance.earlyGameRounds}
-                    onChange={(e) => setLocalSettings(prev => ({ ...prev, finance: { ...prev.finance, earlyGameRounds: Number(e.target.value) } }))}
-                    className="w-full bg-white/5 border border-white/10 rounded px-2 py-1 text-white font-bold outline-none focus:border-monopoly-green"
-                  />
-                </div>
-                <div>
-                  <label className="block text-white/40 text-[10px] font-bold uppercase mb-1">Caution Level</label>
-                  <select
-                    value={localSettings.finance.aiEarlyGameCaution}
-                    onChange={(e) => setLocalSettings(prev => ({
-                      ...prev,
-                      finance: { ...prev.finance, aiEarlyGameCaution: e.target.value as FinanceSettings['aiEarlyGameCaution'] }
-                    }))}
-                    className="w-full bg-white/5 border border-white/10 rounded px-2 py-1 text-white font-bold outline-none focus:border-monopoly-green appearance-none"
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                  </select>
-                </div>
-              </div>
-            </div>
           </div>
-        </div>
 
-        <div className="mt-8 flex gap-4">
           <button
-            onClick={() => setLocalSettings(DEFAULT_SETTINGS)}
-            className="flex-1 bg-white/5 text-white/60 font-bold py-3 rounded-xl uppercase text-sm hover:bg-white/10 transition-all"
+            onClick={startGame}
+            className="w-full mt-12 bg-monopoly-darkGreen text-white font-black py-6 rounded-3xl uppercase text-2xl shadow-2xl hover:scale-[1.02] active:scale-[0.98] transition-all relative overflow-hidden group"
           >
-            Reset Defaults
-          </button>
-          <button
-            onClick={handleStart}
-            className="flex-[2] bg-monopoly-green text-monopoly-darkGreen font-black py-3 rounded-xl uppercase text-lg hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg"
-          >
-            {status === 'waiting' ? 'Start Game' : 'Resume Game'}
+            <div className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
+            Start Business Empire
           </button>
         </div>
       </div>

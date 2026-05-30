@@ -3,6 +3,8 @@
 import { Player } from './player';
 import { BoardTile } from './property';
 
+export type GameStatus = 'setup' | 'playing' | 'paused' | 'gameOver';
+
 export interface GameLogEntry {
   id: string;
   timestamp: number;
@@ -19,7 +21,7 @@ export interface GameState {
   gameLog: GameLogEntry[];
   isGameOver: boolean;
   winner: Player | null;
-  status: 'waiting' | 'playing' | 'paused';
+  status: GameStatus;
   showPurchaseModal: boolean;
   pendingPurchaseTile: BoardTile | null;
 }

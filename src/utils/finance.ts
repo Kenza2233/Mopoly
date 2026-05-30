@@ -29,25 +29,24 @@ export const getScaledProperty = (
   };
 };
 
-export const calculateRent = (tile: BoardTile, allTiles: BoardTile[]): number => {
+export const calculateRent = (tile: BoardTile, allTiles: BoardTile[], rentMultiplier: number = 1.0): number => {
+  let baseRent = 0;
+
   if (tile.type === 'property') {
     if (tile.houses > 0) {
-      return tile.rent[tile.houses];
+      baseRent = tile.rent[tile.houses];
+    } else {
+        const groupTiles = allTiles.filter(t => t.group === tile.group);
+        const hasFullSet = groupTiles.every(t => t.ownerId === tile.ownerId && !t.isMortgaged);
+        baseRent = hasFullSet ? tile.rent[0] * 2 : tile.rent[0];
     }
-    const groupTiles = allTiles.filter(t => t.group === tile.group);
-    const hasFullSet = groupTiles.every(t => t.ownerId === tile.ownerId && !t.isMortgaged);
-    return hasFullSet ? tile.rent[0] * 2 : tile.rent[0];
-  }
-
-  if (tile.type === 'railroad') {
+  } else if (tile.type === 'railroad') {
     const ownedRailroads = allTiles.filter(t => t.type === 'railroad' && t.ownerId === tile.ownerId && !t.isMortgaged).length;
-    return tile.rent[ownedRailroads - 1] || 0;
-  }
-
-  if (tile.type === 'utility') {
+    baseRent = tile.rent[ownedRailroads - 1] || 0;
+  } else if (tile.type === 'utility') {
     const ownedUtilities = allTiles.filter(t => t.type === 'utility' && t.ownerId === tile.ownerId && !t.isMortgaged).length;
-    return tile.rent[ownedUtilities - 1] || 0;
+    baseRent = tile.rent[ownedUtilities - 1] || 0;
   }
 
-  return 0;
+  return Math.round(baseRent * rentMultiplier);
 };
